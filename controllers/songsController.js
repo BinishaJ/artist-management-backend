@@ -1,14 +1,32 @@
 const pool = require("../utils/database");
 
-// Enum for genre (rnb, country, classic, rock, jazz)
-const createGenreEnum = `
-    DO $$ 
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'genre') THEN
-            CREATE TYPE genre AS ENUM ('rnb', 'country', 'classic', 'rock', 'jazz');
-        END IF;
-    END $$;
-  `;
+// create songs table
+const createSongsTable = async () => {
+  const client = await pool.connect();
+  // Enum for genre (rnb, country, classic, rock, jazz)
+  const createGenreEnum = `
+      DO $$ 
+      BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'genre') THEN
+              CREATE TYPE genre AS ENUM ('rnb', 'country', 'classic', 'rock', 'jazz');
+          END IF;
+      END $$;
+    `;
+
+  await client.query(createGenreEnum);
+
+  await client.query(`
+      CREATE TABLE IF NOT EXISTS songs (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        album_name VARCHAR(255) NOT NULL,
+        genre genre NOT NULL,
+        artist_id INTEGER REFERENCES artists(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+};
 
 // list songs with pagination
 const getSongs = async (req, res) => {
@@ -19,18 +37,7 @@ const getSongs = async (req, res) => {
   const offset = (page - 1) * limit;
 
   try {
-    // check if songs table exists
-    const tableExists = await client.query(
-      `
-        SELECT EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_name = 'songs'
-        )
-        `
-    );
-    if (!tableExists.rows[0].exists)
-      return res.status(200).send({ data: { songs: [] } });
+    await createSongsTable();
 
     // send songs list
     const songs = await client.query(
@@ -82,7 +89,6 @@ const createSong = async (req, res) => {
     }
 
     await client.query("BEGIN");
-    await client.query(createGenreEnum);
 
     // create songs table
     await client.query(`
@@ -225,4 +231,11 @@ const deleteSong = async (req, res) => {
     client.release();
   }
 };
-module.exports = { getSongs, createSong, getSong, updateSong, deleteSong };
+module.exports = {
+  getSongs,
+  createSong,
+  getSong,
+  updateSong,
+  deleteSong,
+  createSongsTable,
+};

@@ -1,4 +1,5 @@
 const pool = require("../utils/database");
+const { createSongsTable } = require("./songsController");
 
 // list artists with pagination
 const getArtists = async (req, res) => {
@@ -21,6 +22,9 @@ const getArtists = async (req, res) => {
     );
     if (!tableExists.rows[0].exists)
       return res.status(200).send({ data: { artists: [] } });
+
+    // songs table
+    await createSongsTable();
 
     // send artists list
     const artists = await client.query(
